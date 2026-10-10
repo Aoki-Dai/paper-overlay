@@ -28,6 +28,25 @@ final class OverlayController {
         }
     }
 
+    /// 画面に出す強さ（0〜1）。opacity から計算するので、変更の通知も opacity と一緒に届く
+    var intensity: Double {
+        get { OverlaySettings.intensity(forOpacity: opacity) }
+        set { opacity = OverlaySettings.opacity(forIntensity: newValue) }
+    }
+
+    var isRecommended: Bool {
+        isEnabled && style == OverlaySettings.recommended.style
+            && abs(opacity - OverlaySettings.recommended.opacity) < 0.001
+    }
+
+    /// おすすめの設定をまとめて適用する
+    func applyRecommended() {
+        let recommended = OverlaySettings.recommended
+        style = recommended.style
+        opacity = recommended.opacity
+        isEnabled = recommended.isEnabled
+    }
+
     @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private var windows: [NSWindow] = []
     @ObservationIgnored private var texture: NSImage

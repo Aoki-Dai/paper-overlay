@@ -10,11 +10,13 @@ struct SettingsPanel: View {
 
             VStack(alignment: .leading, spacing: 18) {
                 StyleSection(selection: $overlay.style)
-                OpacitySection(opacity: $overlay.opacity)
+                IntensitySection(intensity: $overlay.intensity)
             }
             .disabled(!overlay.isEnabled)
             .opacity(overlay.isEnabled ? 1 : 0.45)
             .saturation(overlay.isEnabled ? 1 : 0)
+
+            RecommendedButton(overlay: overlay)
 
             PanelFooter()
         }
@@ -53,7 +55,7 @@ private struct PanelHeader: View {
 
     private var status: String {
         guard overlay.isEnabled else { return "オフ" }
-        let percent = overlay.opacity.formatted(.percent.precision(.fractionLength(0)))
+        let percent = overlay.intensity.formatted(.percent.precision(.fractionLength(0)))
         return "\(overlay.style.title) · \(percent)"
     }
 }
@@ -183,39 +185,43 @@ private enum TexturePreviews {
     }
 }
 
-// MARK: - Opacity
+// MARK: - Intensity
 
-private struct OpacitySection: View {
-    @Binding var opacity: Double
+/// 強さ（0〜100%）。実際の不透明度 0〜30% を 0〜100% に引き伸ばして見せる
+private struct IntensitySection: View {
+    @Binding var intensity: Double
 
-    private let presets: [Double] = [0.05, 0.10, 0.20, 0.30]
+    private let presets: [Double] = [0.25, 0.50, 0.75, 1.0]
+    private var recommended: Double { OverlaySettings.intensity(forOpacity: OverlaySettings.recommended.opacity) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                SectionTitle("濃さ")
+                SectionTitle("強さ")
                 Spacer()
-                Text(opacity, format: .percent.precision(.fractionLength(0)))
+                Text(intensity, format: .percent.precision(.fractionLength(0)))
                     .font(.callout.monospacedDigit().weight(.medium))
-                    .contentTransition(.numericText(value: opacity))
-                    .animation(.snappy, value: opacity)
+                    .contentTransition(.numericText(value: intensity))
+                    .animation(.snappy, value: intensity)
             }
 
-            Slider(value: $opacity, in: OverlaySettings.opacityRange) {
-                Text("濃さ")
+            Slider(value: $intensity, in: 0...1) {
+                Text("強さ")
             } minimumValueLabel: {
-                Image(systemName: "circle.dotted")
-                    .foregroundStyle(.secondary)
+                Text("0").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
             } maximumValueLabel: {
-                Image(systemName: "circle.fill")
-                    .foregroundStyle(.secondary)
+                Text("100").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
             }
             .labelsHidden()
 
             HStack(spacing: 6) {
                 ForEach(presets, id: \.self) { value in
-                    PresetChip(value: value, isSelected: abs(opacity - value) < 0.005) {
-                        withAnimation(.snappy) { opacity = value }
+                    PresetChip(
+                        value: value,
+                        isSelected: abs(intensity - value) < 0.005,
+                        isRecommended: abs(value - recommended) < 0.005
+                    ) {
+                        withAnimation(.snappy) { intensity = value }
                     }
                 }
             }
@@ -226,21 +232,77 @@ private struct OpacitySection: View {
 private struct PresetChip: View {
     let value: Double
     let isSelected: Bool
+    let isRecommended: Bool
     let action: () -> Void
+
+    /// 高さの半分で角を丸めた長方形（Capsule と同じ見た目）
+    private let chipShape = RoundedRectangle(cornerRadius: 100, style: .circular)
 
     var body: some View {
         Button(action: action) {
-            Text(value, format: .percent.precision(.fractionLength(0)))
-                .font(.caption.monospacedDigit().weight(.medium))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 5)
-                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
-                .background {
-                    Capsule().fill(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.06)))
+            HStack(spacing: 3) {
+                if isRecommended {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(Color.warmAccent))
                 }
-                .contentShape(Capsule())
+                Text(value, format: .percent.precision(.fractionLength(0)))
+            }
+            .font(.caption.monospacedDigit().weight(.medium))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
+            .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .background {
+                ZStack {
+                    chipShape.fill(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.06)))
+                    chipShape
+                        .inset(by: 0.5)
+                        .stroke(Color.warmAccent.opacity(isRecommended && !isSelected ? 0.6 : 0), lineWidth: 1)
+                }
+            }
+            .contentShape(chipShape)
         }
         .buttonStyle(.plain)
+        .help(isRecommended ? "おすすめの強さ" : "")
+    }
+}
+
+// MARK: - Recommended
+
+/// おすすめの設定（紙・強さ 50%）を 1 回の操作でまとめて適用する
+private struct RecommendedButton: View {
+    let overlay: OverlayController
+
+    var body: some View {
+        let isApplied = overlay.isRecommended
+        Button {
+            withAnimation(.snappy) { overlay.applyRecommended() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isApplied ? "checkmark.seal.fill" : "sparkles")
+                    .foregroundStyle(Color.warmAccent)
+                    .contentTransition(.symbolEffect(.replace))
+                Text(isApplied ? "おすすめ設定で表示中" : "おすすめ設定にする")
+                    .font(.callout.weight(.medium))
+                Spacer(minLength: 4)
+                Text("紙 · 強さ 50%")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.warmAccent.opacity(isApplied ? 0.08 : 0.16))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.warmAccent.opacity(isApplied ? 0.2 : 0.45))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isApplied)
     }
 }
 
@@ -284,6 +346,11 @@ private struct SectionTitle: View {
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
     }
+}
+
+extension Color {
+    /// アイコンと同系色の、紙らしい暖かいアクセント
+    static let warmAccent = Color(red: 0.80, green: 0.58, blue: 0.36)
 }
 
 extension TextureStyle {

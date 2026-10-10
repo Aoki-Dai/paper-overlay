@@ -2,11 +2,19 @@ import Foundation
 
 /// 保存する設定の値
 struct OverlaySettings: Equatable, Sendable {
-    static let opacityRange: ClosedRange<Double> = 0.03...0.40
+    /// 実際の不透明度の上限。画面では 0〜100% の「強さ」として見せ、この値を 100% にあてる
+    static let maxOpacity = 0.30
+    static let opacityRange: ClosedRange<Double> = 0...maxOpacity
+    /// おすすめ：紙・不透明度 15%（= 強さ 50%）
+    static let recommended = OverlaySettings(isEnabled: true, opacity: 0.15, style: .paper)
 
     var isEnabled = true
-    var opacity = 0.20
+    var opacity = 0.15
     var style: TextureStyle = .paper
+
+    /// 画面に出す強さ（0〜1）。不透明度 0〜maxOpacity に比例する
+    static func intensity(forOpacity opacity: Double) -> Double { opacity / maxOpacity }
+    static func opacity(forIntensity intensity: Double) -> Double { min(max(intensity, 0), 1) * maxOpacity }
 }
 
 /// 設定を UserDefaults に読み書きする
