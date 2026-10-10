@@ -47,12 +47,29 @@
 
 ## 動作環境
 
-- macOS 26 以降
-- ビルドには Xcode 26 と [XcodeGen](https://github.com/yonaskolb/XcodeGen) が必要
+- macOS 26 以降（Apple シリコン・Intel の両方に対応）
+- ソースからビルドする場合は Xcode 26 と [XcodeGen](https://github.com/yonaskolb/XcodeGen) が必要
 
-## ビルドと実行
+## インストール
 
-署名済みのリリース版はまだ配布していません。ソースからビルドしてください。
+[Homebrew](https://brew.sh/) で入れられます。
+
+```bash
+brew install --cask aoki-dai/tap/paper-overlay
+```
+
+[Releases](https://github.com/Aoki-Dai/paper-overlay/releases) から zip をダウンロードし、`PaperOverlay.app` を「アプリケーション」フォルダに入れてもかまいません。
+
+### 初めて開くとき
+
+このアプリは Apple の Developer ID で署名していないため、最初は macOS に開くのを止められます。
+
+1. `PaperOverlay.app` を開こうとする（「開けません」と表示されたら「完了」で閉じる）
+2. 「システム設定」→「プライバシーとセキュリティ」を開き、下のほうにある「このまま開く」を押す
+
+2 回目からは普通に開けます。
+
+## ソースからビルドする
 
 ```bash
 brew install xcodegen

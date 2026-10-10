@@ -5,6 +5,7 @@
 build/
 DerivedData/
 *.xcresult
+dist/
 
 # macOS
 .DS_Store
