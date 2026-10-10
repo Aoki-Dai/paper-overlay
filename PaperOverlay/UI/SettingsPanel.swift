@@ -3,6 +3,8 @@ import SwiftUI
 /// メニューバーのアイコンから開く設定パネル
 struct SettingsPanel: View {
     @Bindable var overlay: OverlayController
+    @AppStorage(UIPreferences.showRecommendedKey) private var showRecommended = true
+    @AppStorage(UIPreferences.showPresetsKey) private var showPresets = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -10,19 +12,27 @@ struct SettingsPanel: View {
 
             VStack(alignment: .leading, spacing: 18) {
                 StyleSection(selection: $overlay.style)
-                IntensitySection(intensity: $overlay.intensity)
+                IntensitySection(
+                    intensity: $overlay.intensity,
+                    showsRecommended: showRecommended,
+                    showsPresets: showPresets)
             }
             .disabled(!overlay.isEnabled)
             .opacity(overlay.isEnabled ? 1 : 0.45)
             .saturation(overlay.isEnabled ? 1 : 0)
 
-            RecommendedButton(overlay: overlay)
+            if showRecommended {
+                RecommendedButton(overlay: overlay)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
 
             PanelFooter()
         }
         .padding(16)
         .frame(width: 320)
         .animation(.smooth(duration: 0.25), value: overlay.isEnabled)
+        .animation(.smooth(duration: 0.25), value: showRecommended)
+        .animation(.smooth(duration: 0.25), value: showPresets)
     }
 }
 
@@ -190,6 +200,8 @@ private enum TexturePreviews {
 /// 強さ（0〜100%）。実際の不透明度 0〜30% を 0〜100% に引き伸ばして見せる
 private struct IntensitySection: View {
     @Binding var intensity: Double
+    let showsRecommended: Bool
+    let showsPresets: Bool
 
     private let presets: [Double] = [0.25, 0.50, 0.75, 1.0]
     private var recommended: Double { OverlaySettings.intensity(forOpacity: OverlaySettings.recommended.opacity) }
@@ -214,15 +226,22 @@ private struct IntensitySection: View {
             }
             .labelsHidden()
 
-            HStack(spacing: 6) {
-                ForEach(presets, id: \.self) { value in
-                    PresetChip(
-                        value: value,
-                        isSelected: abs(intensity - value) < 0.005,
-                        isRecommended: abs(value - recommended) < 0.005
-                    ) {
-                        withAnimation(.snappy) { intensity = value }
-                    }
+            if showsPresets {
+                presetRow
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private var presetRow: some View {
+        HStack(spacing: 6) {
+            ForEach(presets, id: \.self) { value in
+                PresetChip(
+                    value: value,
+                    isSelected: abs(intensity - value) < 0.005,
+                    isRecommended: showsRecommended && abs(value - recommended) < 0.005
+                ) {
+                    withAnimation(.snappy) { intensity = value }
                 }
             }
         }
@@ -309,6 +328,7 @@ private struct RecommendedButton: View {
 // MARK: - Footer
 
 private struct PanelFooter: View {
+    @Environment(\.openSettings) private var openSettings
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
     }
@@ -321,6 +341,17 @@ private struct PanelFooter: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 Spacer()
+                Button {
+                    openSettings()
+                    // Dock に出ないアプリなので、前面に出さないと設定ウインドウが後ろに隠れる
+                    NSApplication.shared.activate()
+                } label: {
+                    Label("設定…", systemImage: "gearshape")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut(",")
+
                 Button {
                     NSApplication.shared.terminate(nil)
                 } label: {

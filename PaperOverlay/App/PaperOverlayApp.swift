@@ -12,5 +12,9 @@ struct PaperOverlayApp: App {
             Image(systemName: overlay.isEnabled ? "doc.plaintext.fill" : "doc.plaintext")
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+        }
     }
 }
