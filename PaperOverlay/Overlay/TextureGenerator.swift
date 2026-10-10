@@ -22,13 +22,6 @@ enum TextureStyle: String, CaseIterable, Identifiable, Sendable {
 
     var id: Self { self }
 
-    var title: String {
-        switch self {
-        case .paper: "Paper"
-        case .ePaper: "E-Paper"
-        }
-    }
-
     var parameters: TextureParameters {
         switch self {
         case .paper:
@@ -66,7 +59,7 @@ struct TextureParameters: Sendable {
         let weight: Double
     }
 
-    /// 繊維：本数、長さ（px）、明るさを変える強さ
+    /// 繊維：512px 四方あたりの本数、長さ（px）、明るさを変える強さ
     struct Fibers: Sendable {
         let count: Int
         let length: ClosedRange<Double>
@@ -158,7 +151,9 @@ enum TextureGenerator {
         // 紙すきの流れ方向（横）にそろいやすくする
         let grainDirection = 0.0
 
-        for _ in 0..<fibers.count {
+        // 本数は 512px 四方あたりの値。小さいタイルでも密度が同じになるよう面積に比例させる
+        let count = max(1, Int((Double(fibers.count) * s * s / (512 * 512)).rounded()))
+        for _ in 0..<count {
             var x = rng.nextUnit() * s
             var y = rng.nextUnit() * s
             var angle = grainDirection + rng.nextSigned() * 0.9

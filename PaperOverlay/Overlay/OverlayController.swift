@@ -5,29 +5,43 @@ import Observation
 @MainActor
 @Observable
 final class OverlayController {
-    static let opacityPresets: [Double] = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30]
-
-    var isEnabled = true {
-        didSet { rebuild() }
+    var isEnabled: Bool {
+        didSet {
+            rebuild()
+            persist()
+        }
     }
 
-    var opacity = 0.20 {
-        didSet { windows.forEach { $0.alphaValue = opacity } }
+    var opacity: Double {
+        didSet {
+            windows.forEach { $0.alphaValue = opacity }
+            persist()
+        }
     }
 
-    var style: TextureStyle = .paper {
+    var style: TextureStyle {
         didSet {
             guard style != oldValue else { return }
             texture = TextureGenerator.makeTile(style: style)
             windows.forEach { $0.backgroundColor = NSColor(patternImage: texture) }
+            persist()
         }
     }
 
+    @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private var windows: [NSWindow] = []
-    @ObservationIgnored private var texture = TextureGenerator.makeTile()
+    @ObservationIgnored private var texture: NSImage
     @ObservationIgnored private var screenObserver: (any NSObjectProtocol)?
 
-    init() {
+    init(store: SettingsStore = SettingsStore()) {
+        // init 中の代入では didSet は呼ばれないので、読み込んだ値をそのまま入れられる
+        let saved = store.load()
+        self.store = store
+        isEnabled = saved.isEnabled
+        opacity = saved.opacity
+        style = saved.style
+        texture = TextureGenerator.makeTile(style: saved.style)
+
         // 画面の追加・取り外し・解像度変更に追従する（アプリと同じ寿命なので解除しない）
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -36,6 +50,10 @@ final class OverlayController {
             MainActor.assumeIsolated { self?.rebuild() }
         }
         rebuild()
+    }
+
+    private func persist() {
+        store.save(OverlaySettings(isEnabled: isEnabled, opacity: opacity, style: style))
     }
 
     func rebuild() {

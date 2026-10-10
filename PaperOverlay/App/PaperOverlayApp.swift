@@ -6,41 +6,11 @@ struct PaperOverlayApp: App {
     @State private var overlay = OverlayController()
 
     var body: some Scene {
-        MenuBarExtra("Paper Overlay", systemImage: "doc.plaintext") {
-            MenuContent(overlay: overlay)
+        MenuBarExtra {
+            SettingsPanel(overlay: overlay)
+        } label: {
+            Image(systemName: overlay.isEnabled ? "doc.plaintext.fill" : "doc.plaintext")
         }
-    }
-}
-
-private struct MenuContent: View {
-    @Bindable var overlay: OverlayController
-
-    var body: some View {
-        Toggle("Enabled", isOn: $overlay.isEnabled)
-
-        Divider()
-
-        Picker("Style", selection: $overlay.style) {
-            ForEach(TextureStyle.allCases) { style in
-                Text(style.title).tag(style)
-            }
-        }
-        .pickerStyle(.inline)
-
-        Divider()
-
-        Picker("Opacity", selection: $overlay.opacity) {
-            ForEach(OverlayController.opacityPresets, id: \.self) { value in
-                Text(value, format: .percent.precision(.fractionLength(0))).tag(value)
-            }
-        }
-        .pickerStyle(.inline)
-
-        Divider()
-
-        Button("Quit Paper Overlay") {
-            NSApplication.shared.terminate(nil)
-        }
-        .keyboardShortcut("q")
+        .menuBarExtraStyle(.window)
     }
 }
