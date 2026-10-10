@@ -1,78 +1,115 @@
-# HANDOFF: Paper Overlay（Paperman風 macOS アプリ）
+# HANDOFF: Paper Overlay（Paperman 風 macOS アプリ）
 
-前セッションからの引き継ぎ資料。新セッションはまずこのファイルを読み、「次にやること」から着手する。
+セッション間の引き継ぎ資料。新しいセッションはまずこのファイルを読み、「次にやること」から着手する。
+最終更新：2026-10-10
 
 ## ゴール
 
-[Paperman](https://paperman.cc/) のような「画面全体に紙の質感を重ねて、光沢・コントラストを和らげる」macOS メニューバー常駐アプリを **Swift** で作る。
+[Paperman](https://paperman.cc/) のように「画面全体に紙の質感を重ねて、光沢とコントラストを和らげる」macOS のメニューバー常駐アプリを **Swift** で作る。
 製品として出すことも視野に入れ、**Paperman 本家との差別化**を狙う。
 
-## これまでの決定事項
+## 決定事項
 
 | 決定 | 理由 |
 |---|---|
-| 言語は **Swift**（Rust ではない） | 本家は Rust でクロスプラットフォーム。対抗するなら Mac 固有機能（App Intents / Focus Filter / WidgetKit / SwiftUI）で勝負する。これらは Swift でしか書けない |
-| macOS 専用 | 同上。Windows 対応はしない |
-| 非サンドボックス（直接配布）を基本にする | 本家の App Store 版は、サンドボックスの制限で他アプリのフルスクリーン時にテクスチャが効かない。ここも差別化ポイント |
+| 言語は **Swift**、**macOS 専用** | 本家は Rust 製でクロスプラットフォーム。こちらは Mac 固有の機能（App Intents、Focus Filter、WidgetKit、SwiftUI）で勝負する |
+| **サンドボックスなし**で直接配布（Hardened Runtime は有効） | 本家の App Store 版は、サンドボックスの制限で他アプリのフルスクリーン時に効かない。ここも差別化ポイント |
+| **XcodeGen** で `project.yml` からプロジェクトを生成 | `.xcodeproj` は git で管理しない（`xcodegen generate` で作り直す） |
+| デプロイ対象は **macOS 26.0** | macOS 27 は Xcode 26.6 に SDK がないため指定できない（SDK は 26.5 まで）。Xcode 27 が出たら上げられる |
+| Bundle ID は **`com.d4ok1.PaperOverlay`** | ユーザーの指定 |
+| 強さは **0〜100% の尺度**で見せ、実際の不透明度 **0〜30%** に対応させる | 保存するのは実際の不透明度。表示のときだけ換算する（`OverlaySettings.maxOpacity`） |
+| **おすすめは「紙・強さ 50%（= 不透明度 15%）」** | ユーザーのお気に入りが不透明度 15%。尺度の上限を 30% にしたのは、15% がちょうど真ん中に来るようにするため |
+| モニターは「**表示しない**モニター」を UUID で保存する | 新しく接続したモニターには自動で表示される |
+| UI の文言は日本語 | 英語化（ローカライズ）は配布準備のときに行う |
 
-比較検証の成果物（Swift / Rust 両方の MVP と比較結果）: `~/agent-dev/paper-overlay-compare/`
-→ 実測では両者とも phys_footprint 16MB・待機 CPU 約 0%。性能差はなし。
+## 現状（できていること）
 
-## 本家 Paperman の機能（調査結果）
+環境：Xcode 26.6、Swift 6.3.3（言語モード 6、strict concurrency complete）、macOS 27.0.1（arm64）、モニター 2 台（Color LCD ＋ DELL S2722QC）
 
-- 紙テクスチャ 9 種（プロシージャル生成、feTurbulence 系）、不透明度 15〜30%
-- Desk Lamp モード（暖色の光、6 種のプリセット）
-- アプリ除外リスト、特定アプリが前面のとき自動非表示
-- 日の出・日没または任意のスケジュール
-- マルチモニター、表示するモニターの選択
-- バッテリー駆動時の一時停止、数分間のスヌーズ
-- クリックスルー、フォーカスを奪わない
-- Rust 製、メモリ 25MB 未満、CPU 0% をうたう
-- Mac は買い切り（App Store / 直販 / Setapp）、Windows 版は 11.99 ドル
+- **オーバーレイ**：画面ごとに、枠なし・透明・クリックスルーの `NSWindow`（`level = .screenSaver`、全スペース、フルスクリーン補助）。画面構成の変化に追従する
+- **テクスチャ**（`TextureGenerator`）：feTurbulence（fractalNoise）風に、周期 1〜128px のバリューノイズを重ねる。Retina 解像度のタイル（512px = 256pt）で、平均の明るさは中間調
+  - **紙**：暖色、粒が細かく、ゆるく曲がった短い繊維が入る（本数はタイルの面積に比例）
+  - **電子ペーパー**：明るい無彩色のグレー、粒はごく弱く、ゆるやかなまだら
+- **設定パネル**（`MenuBarExtra` の `.window` スタイル）：オン／オフのスイッチ、見本つきのスタイルカード、強さのスライダーとプリセット（25・50★・75・100%）、モニター欄（2 台以上のときだけ）、「おすすめ設定にする」ボタン、設定・終了
+- **設定ウインドウ**（⌘,）
+  - 「一般」タブ：ログイン時に起動（`SMAppService`）、おすすめ／プリセットの表示切り替え
+  - 「モニター」タブ：モニターごとのオン／オフ
+- **設定の保存**（`SettingsStore`）：オン／オフ・不透明度・スタイル・除外モニターを UserDefaults に保存。範囲外の値や未知のスタイルは既定値に戻す
+- **テスト**：Swift Testing で 15 件（テクスチャの決定性・色・明るさ・粒の細かさ、設定の保存と復元、強さの換算、モニターの除外）
 
-## 差別化の候補（優先度は未確定。ユーザーと相談して決める）
+### ファイル構成
 
-1. **App Intents** — ショートカット.app や Siri から「読書モード ON」「不透明度 25%」を操作できるようにする
-2. **Focus Filter** — 集中モード（仕事・読書など）に連動してオン／オフや強さを切り替える
-3. **ControlWidget / WidgetKit** — コントロールセンターやメニューから素早く切り替える
-4. **コンテンツ適応** — ScreenCaptureKit で画面の明るさを見て、強さを自動調整する（画面収録の権限が必要）
-5. **SwiftUI の Mac ネイティブな設定画面**
-6. 他アプリのフルスクリーン時にも確実に効く（非サンドボックス版）
-
-## 現状
-
-- `reference/mvp-main.swift` … 比較用に作った単一ファイルの MVP（166 行、`swiftc -O` でビルドでき、動作確認済み）
-  - メニューバー常駐（`.accessory`）、📄 メニュー：Enabled / Opacity 15・20・25・30% / Quit
-  - 画面ごとに枠なし・透明・クリックスルーの `NSWindow`
-  - `level = .screenSaver`、`collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]`、`sharingType = .none`
-  - 256px のシームレスなタイルを起動時に 1 回生成（xorshift64 ＋ 8×8 バリューノイズ ＋ 粒子）し、`NSColor(patternImage:)` で敷き詰める
-  - `didChangeScreenParametersNotification` で画面構成の変化に追従
-- **まだ本番のプロジェクト構成になっていない。** ここから作り直す。
+```
+project.yml
+PaperOverlay/
+  App/PaperOverlayApp.swift        @main、MenuBarExtra と Settings シーン
+  Overlay/OverlayController.swift  ウインドウの管理、設定の反映と保存
+  Overlay/TextureGenerator.swift   TextureStyle とタイル生成
+  Overlay/Displays.swift           モニターの情報と UUID
+  Settings/SettingsStore.swift     OverlaySettings と UserDefaults の読み書き
+  Settings/UIPreferences.swift     パネルの見せ方の設定キー（@AppStorage）
+  Settings/LoginItem.swift         ログイン時の起動
+  UI/SettingsPanel.swift           メニューバーのパネル
+  UI/SettingsView.swift            設定ウインドウ
+PaperOverlayTests/                 Swift Testing
+reference/mvp-main.swift           最初の単一ファイル版（参照用。ビルド対象外）
+```
 
 ## 次にやること
 
-1. **プロジェクト構成を決めて作る**
-   - 推奨：**XcodeGen**（`/opt/homebrew/bin/xcodegen` がインストール済み）で `project.yml` から Xcode プロジェクトを生成する
-     - App Intents や Widget Extension には `.app` バンドルと拡張ターゲットが必要。SwiftPM の単体実行ファイルでは作れない
-     - `project.yml` をテキストで管理できるので、git の差分が読みやすい
-   - 環境：Xcode 26.6、Swift 6.3.3、macOS 27.0.1（arm64）
-   - `LSUIElement = YES`（Dock に表示しない）、Swift 6 の言語モード
-2. `reference/mvp-main.swift` を、責務ごとのファイルに分けて移植する
-   - 案：`TextureGenerator` / `OverlayController` / `MenuBarController`（SwiftUI の `MenuBarExtra` を検討）/ `Settings`（`@AppStorage`）
-3. 設定の保存（不透明度、オン／オフ）
-4. アプリ除外リスト（`NSWorkspace.didActivateApplicationNotification`）
-5. 差別化機能の 1 つめ（ユーザーと相談。1 の App Intents が最も手軽で効果が大きい見込み）
+完了：1. プロジェクト構成 → 2. ファイル分割と移植 → 3. 設定の保存（＋設定パネル・設定ウインドウ・モニター選択・ログイン時の起動）
+
+4. **アプリ除外リスト**（特定のアプリが前面のときは自動で隠す）
+   1. `NSWorkspace.didActivateApplicationNotification` で前面のアプリの切り替えを検知する
+   2. 除外リストにあるアプリなら、一時的にウインドウを隠す（オン／オフの設定は変えない）
+   3. 設定ウインドウに「除外するアプリ」タブ：アイコン付きの一覧。追加は「アプリケーション」フォルダか起動中のアプリから。削除もここで
+   4. パネルのヘッダーに「一時停止中（Photoshop が前面）」のように理由を出す
+   5. Bundle ID の一覧を保存し、テストを書く
+5. **一時停止の仕組み**：スヌーズ（数分間だけ消す）、バッテリー駆動中は一時停止。4 の「一時的に隠す」と同じ仕組みにまとめる
+6. **スケジュール**：日の出・日の入り、または時刻指定で自動でオン／オフ
+7. **差別化機能の 1 つめ**：App Intents（ショートカット.app や Siri から、オン／オフ・強さ・スタイルを操作）が最も手軽で効果が大きい見込み
+8. テクスチャの種類を増やす、Desk Lamp モード
+9. 配布の準備：アプリアイコン、英語の UI、Developer ID 署名と公証、メモリ・CPU の計測
+
+## 本家 Paperman との機能差（2026-10-10 に paperman.cc で確認）
+
+| 本家の機能 | こちら |
+|---|---|
+| テクスチャ 9 種（Classic Matte、Whisper Weave、Sunbaked Parchment、Saddle Linen、Painter's Press、Mulberry Veil、Vellum Mist、近日公開：Monastic Felt、Carbon Ledger） | △ 2 種（紙、電子ペーパー） |
+| Desk Lamp モード（暖色の光。プリセット 6 種：Soft Candlelight、Midnight Oil、Nook Lantern、Gallery Spot、Golden Hour、Quiet Aurora） | ✕ |
+| アプリ除外リスト（Photoshop や動画プレーヤーなど） | ✕ → 手順 4 |
+| バッテリー駆動時の一時停止 | ✕ → 手順 5 |
+| 数分間のスヌーズ | ✕ → 手順 5 |
+| スケジュール（日の出・日の入り、または任意の時刻） | ✕ → 手順 6 |
+| マルチモニター（全モニターに表示、表示するモニターを選べる） | ✅ |
+| 強さの調整（不透明度 15〜30%） | ✅（0〜30% を 0〜100% で表示） |
+| クリックスルー、フォーカスを奪わない | ✅ |
+| メモリ 25MB 未満、待機時の CPU 0% | ？ 最初の MVP では 16MB・CPU 約 0%。今の版は未計測 |
+| 配布：App Store、直販、Setapp | ✕ → 手順 9 |
+
+こちらにしかないもの：電子ペーパー風スタイル、おすすめ設定ボタン、見本つきのスタイル選択、パネルの見せ方の設定、他アプリのフルスクリーン中にも効く（サンドボックスなし）
 
 ## ハマりどころ・メモ
 
-- Swift 6 では、トップレベルのコードは MainActor に分離されない。`@MainActor` なクラスを生成するときは `MainActor.assumeIsolated { ... }` で包むか、`@main` を使う
-- `sharingType = .none` にしているので、**スクリーンショットにオーバーレイが写らない**。見た目の確認はユーザーに頼むか、デバッグ時だけ `.readOnly` にする
-- `level = .screenSaver` は、通知やシステムダイアログより上に表示されることがある。レベルは調整が必要かもしれない
-- テクスチャの質感（粒度、繊維の方向、乗算かオーバーレイかの合成方法）が製品価値の大部分を占める。ここは時間をかけて詰める
-- 画面収録・アクセシビリティの権限は、コンテンツ適応（候補 4）をやらない限り不要
+- **このシェルには画面収録の権限がない。** `screencapture` は失敗する。見た目は次の方法で確認する
+  - テクスチャ：`TextureGenerator.swift` を `swiftc` で小さなプログラムと一緒にビルドし、白・黒の背景に重ねた結果を PNG に書き出す
+  - UI：一時的なテストで、ビューを `NSHostingView` に載せて画面外のウインドウに置き、`cacheDisplay` で PNG に書き出す。確認が終わったらテストは消す
+    - `.defaultAppStorage(...)` と `OverlayController(store: SettingsStore(defaults: 使い捨ての UserDefaults))` を使えば、実際の設定を汚さない
+    - モニターが複数のときの見た目は、DEBUG ビルド専用の `overrideDisplaysForPreview(_:)` で一覧を差し替えて確かめる。ただし設定を変えると実際の画面で作り直されるので、差し替えは最後にもう一度行う
+    - この書き出し方法では、`Capsule` の左右の端が切れる、`TabView` のタブやスイッチの色が描かれない、という違いがある。チップは `RoundedRectangle(cornerRadius: 100)` で描いている
+- オーバーレイは DEBUG ビルドだけ `sharingType = .readOnly`（スクリーンショットに写る）。リリースでは `.none`
+- `pkill` の直後に `open` すると `-600` で失敗することがある。旧プロセスが終わるのを待ってから起動する
+- `UserDefaults` はこの SDK では Sendable ではない。`SettingsStore` は Sendable にしていない
+- テストの実行中にログに出る `com.apple.linkd.autoShortcut` の接続エラーと `No AppIntents.framework dependency found` は無視してよい
+- `level = .screenSaver` は通知やシステムダイアログより上に表示されることがある。レベルは調整が必要かもしれない
+- ログイン項目は、登録したときのアプリの場所を指す。`build/` のデバッグ版で登録すると、そのパスが登録される
+- テクスチャの質感が製品価値の大部分を占める。パラメータは `TextureStyle.parameters` にまとまっている
 
 ## ユーザーについて
 
-- ターミナルコマンドを実行するときは、**日本語でコマンドの解説**をつける（グローバルの CLAUDE.md のルール）
+- **応答はすべて日本語**で書く（途中経過の一言や Insight も含む）
+- ターミナルコマンドを実行するときは、日本語でコマンドの解説をつける（グローバルの CLAUDE.md のルール）
 - 試作アプリは `~/agent-dev/` の直下にディレクトリを作る
 - 学習にも関心がある。実装を選んだ理由を簡単に説明すると喜ばれる
+- 進捗は、既存の task-progress mod（`~/agent-dev/task-progress`、TaskCreate／TaskUpdate を表示）で見ている。新しく mod を作らない
+- 見た目は本家に寄せつつ、モダンで UI/UX の良いものを好む
