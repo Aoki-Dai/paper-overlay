@@ -60,7 +60,7 @@ private struct GeneralSettings: View {
                 }
                 Toggle(isOn: $showPresets) {
                     Text("強さのプリセットを表示")
-                    Text("25・50・75・100% のボタン")
+                    Text("20・40・60・80・100% のボタン")
                 }
             } header: {
                 Text("メニューバーのパネル")

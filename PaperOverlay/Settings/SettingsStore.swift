@@ -11,11 +11,11 @@ struct OverlaySettings: Equatable, Sendable {
     /// 実際の不透明度の上限。画面では 0〜100% の「強さ」として見せ、この値を 100% にあてる
     static let maxOpacity = 0.30
     static let opacityRange: ClosedRange<Double> = 0...maxOpacity
-    /// おすすめ：紙・不透明度 15%（= 強さ 50%）
-    static let recommended = OverlaySettings(isEnabled: true, opacity: 0.15, style: .paper)
+    /// おすすめ：紙・強さ 40%（= 不透明度 12%）
+    static let recommended = OverlaySettings(isEnabled: true, opacity: 0.12, style: .paper)
 
     var isEnabled = true
-    var opacity = 0.15
+    var opacity = 0.12
     var style: TextureStyle = .paper
     /// 表示しないモニターの UUID。除外を覚える方式なので、新しく接続したモニターには自動で表示される
     var excludedDisplays: Set<String> = []

@@ -38,9 +38,9 @@ struct SettingsStoreTests {
         #expect(store.load().style == OverlaySettings().style)
     }
 
-    /// お気に入りの不透明度 15% が、0〜100% の尺度でちょうど真ん中（50%）に来る
-    @Test func recommendedOpacityIsHalfIntensity() {
-        #expect(OverlaySettings.intensity(forOpacity: OverlaySettings.recommended.opacity) == 0.5)
+    /// おすすめは強さ 40%（不透明度 12%）
+    @Test func recommendedIsFortyPercentIntensity() {
+        #expect(abs(OverlaySettings.intensity(forOpacity: OverlaySettings.recommended.opacity) - 0.4) < 1e-9)
         #expect(OverlaySettings.opacity(forIntensity: 1) == OverlaySettings.maxOpacity)
         #expect(OverlaySettings.opacity(forIntensity: 0) == 0)
         #expect(OverlaySettings.opacity(forIntensity: 2) == OverlaySettings.maxOpacity)

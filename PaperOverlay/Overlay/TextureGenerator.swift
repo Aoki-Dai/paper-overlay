@@ -85,67 +85,110 @@ enum TextureGenerator {
 
     /// RGBA 8bit の画素列（size × size × 4 バイト）。size は各オクターブの周期で割り切れること
     static func pixels(size: Int = 512, style: TextureStyle = .paper, seed: UInt64 = defaultSeed) -> [UInt8] {
+        [UInt8](unsafeUninitializedCapacity: size * size * 4) { buffer, count in
+            render(size: size, style: style, seed: seed, into: buffer)
+            count = size * size * 4
+        }
+    }
+
+    /// 画素を output（size × size × 4 バイト）に書き込む
+    ///
+    /// 途中の計算に使う数 MB の作業領域は、malloc ではなく OS から直接借りて（mmap）、終わったら返す（munmap）。
+    /// malloc で確保した大きな領域は、解放してもプロセスが抱えたままになり、常駐アプリのメモリを押し上げるため。
+    static func render(
+        size: Int, style: TextureStyle, seed: UInt64, into output: UnsafeMutableBufferPointer<UInt8>
+    ) {
+        precondition(output.count >= size * size * 4)
         let p = style.parameters
         var rng = XorShift64(state: seed)
-        var field = [Double](repeating: 0, count: size * size)
-        let totalWeight = p.octaves.reduce(0) { $0 + $1.weight }
+        let count = size * size
 
-        for octave in p.octaves {
-            addValueNoise(into: &field, size: size, period: octave.period,
-                          weight: octave.weight / totalWeight, rng: &rng)
-        }
+        withScratch(Double.self, count: count) { field in
+            field.initialize(repeating: 0)
+            let totalWeight = p.octaves.reduce(0) { $0 + $1.weight }
+            for octave in p.octaves {
+                addValueNoise(into: field, size: size, period: octave.period,
+                              weight: octave.weight / totalWeight, rng: &rng)
+            }
 
-        // 重ねるほど値が 0.5 付近に集まるので、標準偏差で正規化して粒の強さをそろえる
-        let mean = field.reduce(0, +) / Double(field.count)
-        let variance = field.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(field.count)
-        let deviation = max(variance.squareRoot(), 1e-6)
-        var luminance = field.map { value in
-            p.baseLuminance + p.grainContrast * max(-2.5, min(2.5, (value - mean) / deviation)) / 2.5
-        }
+            // 重ねるほど値が 0.5 付近に集まるので、標準偏差で正規化して粒の強さをそろえる
+            var sum = 0.0
+            for value in field { sum += value }
+            let mean = sum / Double(count)
+            var squares = 0.0
+            for value in field { squares += (value - mean) * (value - mean) }
+            let deviation = max((squares / Double(count)).squareRoot(), 1e-6)
 
-        if let fibers = p.fibers {
-            addFibers(into: &luminance, size: size, fibers: fibers, rng: &rng)
-        }
+            // field をそのまま明るさに置き換える（もう 1 枚ぶんの領域を使わない）
+            for i in 0..<count {
+                field[i] = p.baseLuminance
+                    + p.grainContrast * max(-2.5, min(2.5, (field[i] - mean) / deviation)) / 2.5
+            }
 
-        var pixels = [UInt8](repeating: 255, count: size * size * 4)
-        for i in 0..<luminance.count {
-            pixels[i * 4] = channel(luminance[i] * p.tint.r)
-            pixels[i * 4 + 1] = channel(luminance[i] * p.tint.g)
-            pixels[i * 4 + 2] = channel(luminance[i] * p.tint.b)
+            if let fibers = p.fibers {
+                addFibers(into: field, size: size, fibers: fibers, rng: &rng)
+            }
+
+            for i in 0..<count {
+                output[i * 4] = channel(field[i] * p.tint.r)
+                output[i * 4 + 1] = channel(field[i] * p.tint.g)
+                output[i * 4 + 2] = channel(field[i] * p.tint.b)
+                output[i * 4 + 3] = 255
+            }
         }
-        return pixels
+    }
+
+    /// OS から直接借りた作業領域を body に渡し、終わったらすぐ返す
+    private static func withScratch<T>(
+        _ type: T.Type, count: Int, _ body: (UnsafeMutableBufferPointer<T>) -> Void
+    ) {
+        let bytes = max(count * MemoryLayout<T>.stride, 1)
+        let raw = mmap(nil, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0)
+        guard let raw, raw != MAP_FAILED else {
+            // 借りられなければ通常の確保にフォールバックする
+            let pointer = UnsafeMutablePointer<T>.allocate(capacity: count)
+            defer { pointer.deallocate() }
+            body(UnsafeMutableBufferPointer(start: pointer, count: count))
+            return
+        }
+        defer { munmap(raw, bytes) }
+        body(UnsafeMutableBufferPointer(start: raw.bindMemory(to: T.self, capacity: count), count: count))
     }
 
     /// 周期 period の格子に乱数を置き、smoothstep で補間して足し込む。格子は端で折り返す
     private static func addValueNoise(
-        into field: inout [Double], size: Int, period: Int, weight: Double, rng: inout XorShift64
+        into field: UnsafeMutableBufferPointer<Double>, size: Int, period: Int, weight: Double,
+        rng: inout XorShift64
     ) {
         let cells = max(size / period, 1)
-        let grid = (0..<cells * cells).map { _ in rng.nextUnit() }
-        func at(_ cx: Int, _ cy: Int) -> Double { grid[(cy % cells) * cells + (cx % cells)] }
+        withScratch(Double.self, count: cells * cells) { grid in
+            for i in 0..<grid.count { grid[i] = rng.nextUnit() }
+            func at(_ cx: Int, _ cy: Int) -> Double { grid[(cy % cells) * cells + (cx % cells)] }
 
-        if period == 1 {
-            for i in 0..<field.count { field[i] += weight * grid[i] }
-            return
-        }
+            if period == 1 {
+                for i in 0..<field.count { field[i] += weight * grid[i] }
+                return
+            }
 
-        func smooth(_ t: Double) -> Double { t * t * (3 - 2 * t) }
-        for y in 0..<size {
-            let gy = y / period
-            let fy = smooth(Double(y % period) / Double(period))
-            for x in 0..<size {
-                let gx = x / period
-                let fx = smooth(Double(x % period) / Double(period))
-                let top = at(gx, gy) * (1 - fx) + at(gx + 1, gy) * fx
-                let bottom = at(gx, gy + 1) * (1 - fx) + at(gx + 1, gy + 1) * fx
-                field[y * size + x] += weight * (top * (1 - fy) + bottom * fy)
+            func smooth(_ t: Double) -> Double { t * t * (3 - 2 * t) }
+            for y in 0..<size {
+                let gy = y / period
+                let fy = smooth(Double(y % period) / Double(period))
+                for x in 0..<size {
+                    let gx = x / period
+                    let fx = smooth(Double(x % period) / Double(period))
+                    let top = at(gx, gy) * (1 - fx) + at(gx + 1, gy) * fx
+                    let bottom = at(gx, gy + 1) * (1 - fx) + at(gx + 1, gy + 1) * fx
+                    field[y * size + x] += weight * (top * (1 - fy) + bottom * fy)
+                }
             }
         }
     }
 
     /// ゆるく曲がる短い繊維を描く。座標を size で折り返すので、タイルの端をまたいでもつながる
     private static func addFibers(
-        into luminance: inout [Double], size: Int, fibers: TextureParameters.Fibers, rng: inout XorShift64
+        into luminance: UnsafeMutableBufferPointer<Double>, size: Int, fibers: TextureParameters.Fibers,
+        rng: inout XorShift64
     ) {
         let s = Double(size)
         // 紙すきの流れ方向（横）にそろいやすくする
@@ -169,7 +212,7 @@ enum TextureGenerator {
                 // 両端を細く薄くする
                 let t = travelled / length
                 let taper = sin(Double.pi * t)
-                deposit(into: &luminance, size: size, x: x, y: y, amount: amount * taper)
+                deposit(into: luminance, size: size, x: x, y: y, amount: amount * taper)
                 x += cos(angle) * 0.5
                 y += sin(angle) * 0.5
                 angle += bend
@@ -179,12 +222,15 @@ enum TextureGenerator {
     }
 
     /// 1 点ぶんの明るさの変化を、周囲 4 画素に重みをつけて足す（アンチエイリアス）
-    private static func deposit(into luminance: inout [Double], size: Int, x: Double, y: Double, amount: Double) {
+    private static func deposit(
+        into luminance: UnsafeMutableBufferPointer<Double>, size: Int, x: Double, y: Double, amount: Double
+    ) {
         let x0 = Int(x.rounded(.down)), y0 = Int(y.rounded(.down))
         let fx = x - Double(x0), fy = y - Double(y0)
         // 0.5px 刻みで同じ画素に 2 回足されるので半分にする
         let a = amount * 0.5
-        for (dx, dy, w) in [(0, 0, (1 - fx) * (1 - fy)), (1, 0, fx * (1 - fy)), (0, 1, (1 - fx) * fy), (1, 1, fx * fy)] {
+        let weights = [(0, 0, (1 - fx) * (1 - fy)), (1, 0, fx * (1 - fy)), (0, 1, (1 - fx) * fy), (1, 1, fx * fy)]
+        for (dx, dy, w) in weights {
             let px = ((x0 + dx) % size + size) % size
             let py = ((y0 + dy) % size + size) % size
             luminance[py * size + px] += a * w
@@ -196,22 +242,24 @@ enum TextureGenerator {
     }
 
     /// Retina で 1 画素 = 1 物理ピクセルになるよう、scale 倍の画素数でポイントサイズの画像を作る
+    ///
+    /// 画素は CGImage が持つ領域に直接書き込む。NSBitmapImageRep を経由すると、
+    /// 模様として使うときに CGImage へもう 1 枚コピーされ、タイルを 2 重に持つことになるため。
     static func makeTile(
         pixelSize: Int = 512, scale: CGFloat = 2, style: TextureStyle = .paper, seed: UInt64 = defaultSeed
     ) -> NSImage {
-        let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: pixelSize, pixelsHigh: pixelSize,
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: pixelSize * 4, bitsPerPixel: 32)!
-        let source = pixels(size: pixelSize, style: style, seed: seed)
-        source.withUnsafeBufferPointer { buffer in
-            rep.bitmapData!.update(from: buffer.baseAddress!, count: buffer.count)
-        }
+        let bytesPerRow = pixelSize * 4
+        let data = NSMutableData(length: bytesPerRow * pixelSize)!
+        render(size: pixelSize, style: style, seed: seed, into: UnsafeMutableBufferPointer(
+            start: data.mutableBytes.assumingMemoryBound(to: UInt8.self), count: data.length))
 
-        let points = NSSize(width: CGFloat(pixelSize) / scale, height: CGFloat(pixelSize) / scale)
-        rep.size = points
-        let image = NSImage(size: points)
-        image.addRepresentation(rep)
-        return image
+        let image = CGImage(
+            width: pixelSize, height: pixelSize, bitsPerComponent: 8, bitsPerPixel: 32,
+            bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+            provider: CGDataProvider(data: data)!, decode: nil, shouldInterpolate: false,
+            intent: .defaultIntent)!
+        return NSImage(cgImage: image, size: NSSize(
+            width: CGFloat(pixelSize) / scale, height: CGFloat(pixelSize) / scale))
     }
 }

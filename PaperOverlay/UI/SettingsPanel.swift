@@ -211,7 +211,7 @@ private struct IntensitySection: View {
     let showsRecommended: Bool
     let showsPresets: Bool
 
-    private let presets: [Double] = [0.25, 0.50, 0.75, 1.0]
+    private let presets: [Double] = [0.20, 0.40, 0.60, 0.80, 1.0]
     private var recommended: Double { OverlaySettings.intensity(forOpacity: OverlaySettings.recommended.opacity) }
 
     var body: some View {
@@ -366,12 +366,16 @@ private struct DisplayRow: View {
 
 // MARK: - Recommended
 
-/// おすすめの設定（紙・強さ 50%）を 1 回の操作でまとめて適用する
+/// おすすめの設定（OverlaySettings.recommended）を 1 回の操作でまとめて適用する
 private struct RecommendedButton: View {
     let overlay: OverlayController
 
     var body: some View {
         let isApplied = overlay.isRecommended
+        let recommended = OverlaySettings.recommended
+        let percent = OverlaySettings.intensity(forOpacity: recommended.opacity)
+            .formatted(.percent.precision(.fractionLength(0)))
+        let summary = "\(recommended.style.title) · 強さ \(percent)"
         Button {
             withAnimation(.snappy) { overlay.applyRecommended() }
         } label: {
@@ -382,7 +386,7 @@ private struct RecommendedButton: View {
                 Text(isApplied ? "おすすめ設定で表示中" : "おすすめ設定にする")
                     .font(.callout.weight(.medium))
                 Spacer(minLength: 4)
-                Text("紙 · 強さ 50%")
+                Text(summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
