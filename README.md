@@ -58,6 +58,13 @@
 brew install --cask aoki-dai/tap/paper-overlay
 ```
 
+短い名前（`paper-overlay`）で入れたいときは、先にこの tap を信頼する設定をしてください。Homebrew は、信頼していない tap の cask を短い名前では読み込みません。
+
+```bash
+brew trust aoki-dai/tap
+brew install --cask paper-overlay
+```
+
 [Releases](https://github.com/Aoki-Dai/paper-overlay/releases) からも入れられます。
 
 - **DMG**：`PaperOverlay-<バージョン>.dmg` を開き、`PaperOverlay.app` を隣の「Applications」フォルダへドラッグする
