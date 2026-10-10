@@ -98,7 +98,8 @@ reference/mvp-main.swift           最初の単一ファイル版（参照用。
 - **Apple Developer Program には登録しない方針**。アプリはアドホック署名のまま配る。初回は「システム設定 → プライバシーとセキュリティ → このまま開く」が必要（README と cask の caveats に記載）
 - リリースの手順
   1. `project.yml` の `MARKETING_VERSION` を上げてコミット
-  2. `scripts/release.sh --publish`（ユニバーサル版をビルド → zip → push → `gh release create v<版>`）。最後に sha256 が表示される
+  2. `scripts/release.sh --publish`（ユニバーサル版をビルド → zip と DMG → push → `gh release create v<版>`）。最後に sha256 が表示される
+     - 既存のリリースに DMG だけ足すときは `scripts/release.sh --attach`（zip は作り直さない。sha256 が変わると cask と合わなくなるため）
   3. `~/agent-dev/homebrew-tap/Casks/paper-overlay.rb` の `version` と `sha256` を書き換えて push
   4. `brew update && brew fetch --cask aoki-dai/tap/paper-overlay` でダウンロードとハッシュを確認
 - cask の macOS 要件は `depends_on macos: :tahoe`（Homebrew 7 では `">= :tahoe"` の書き方は非推奨）

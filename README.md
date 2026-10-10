@@ -58,7 +58,10 @@
 brew install --cask aoki-dai/tap/paper-overlay
 ```
 
-[Releases](https://github.com/Aoki-Dai/paper-overlay/releases) から zip をダウンロードし、`PaperOverlay.app` を「アプリケーション」フォルダに入れてもかまいません。
+[Releases](https://github.com/Aoki-Dai/paper-overlay/releases) からも入れられます。
+
+- **DMG**：`PaperOverlay-<バージョン>.dmg` を開き、`PaperOverlay.app` を隣の「Applications」フォルダへドラッグする
+- **zip**：展開して、`PaperOverlay.app` を「アプリケーション」フォルダに入れる
 
 ### 初めて開くとき
 
