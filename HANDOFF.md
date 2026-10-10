@@ -105,6 +105,14 @@ reference/mvp-main.swift           最初の単一ファイル版（参照用。
 - cask の macOS 要件は `depends_on macos: :tahoe`（Homebrew 7 では `">= :tahoe"` の書き方は非推奨）
 - **`brew style` は実行しない**（入った開発用の部品は 2026-10-10 に `git clean -fdX Library/Homebrew/vendor/bundle` で片付け済み）：開発用の gem を `/opt/homebrew/Library/Homebrew/vendor/bundle` に入れようとして途中で失敗し、`json-3.0.2` が Homebrew の Ruby と食い違って `brew tap` や `brew info` が動かなくなった（2026-10-10）。`json-3.0.2` を退避して直した
 
+## 試作中・宣伝用の素材（2026-10-10）
+
+- **Desk Lamp モード（お試し）**：ブランチ `try/desk-lamp`（main には入れていない）。`PaperOverlay/Overlay/DeskLamp.swift` に暖色の放射状グラデーションの光を、紙のウインドウの 1 つ上に重ねる。光は「ろうそく・スタンド・夕暮れ」の 3 種類と強さ。残すなら main にマージし、いらなければブランチを消す
+- **X 用の素材**（`docs/`）
+  - `compare-40.png`・`compare-100.png`：架空の画面（記事とコード）の下半分に紙を重ねた比較画像（ユーザーのお気に入りは 40%）
+  - `demo.mp4`：10 秒のデモ動画（1920×1080）。OFF → 紙 40% → 電子ペーパー 40% → 紙 100% → OFF
+  - どちらも一時テストの中で SwiftUI の画面を描き、`TextureGenerator` のタイルを重ねて作った（動画は AVAssetWriter で H.264）。リリース版のオーバーレイは画面収録に写らないため、実物の録画は開発用ビルドで行う
+
 ## 計測（2026-10-10、Release ビルド、モニター 2 台）
 
 **メモリ最適化後：24MB**（30MB → 24MB）。行ったこと：
