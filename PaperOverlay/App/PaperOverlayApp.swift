@@ -14,7 +14,7 @@ struct PaperOverlayApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView()
+            SettingsView(overlay: overlay)
         }
     }
 }

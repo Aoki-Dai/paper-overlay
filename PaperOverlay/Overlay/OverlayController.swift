@@ -28,6 +28,42 @@ final class OverlayController {
         }
     }
 
+    /// 表示しないモニターの UUID
+    var excludedDisplays: Set<String> {
+        didSet {
+            guard excludedDisplays != oldValue else { return }
+            rebuild()
+            persist()
+        }
+    }
+
+    /// 接続中のモニター（画面構成が変わるたびに更新）
+    private(set) var displays: [DisplayInfo] = []
+
+    func isShown(on display: DisplayInfo) -> Bool {
+        !excludedDisplays.contains(display.id)
+    }
+
+    func setShown(_ isShown: Bool, on display: DisplayInfo) {
+        if isShown {
+            excludedDisplays.remove(display.id)
+        } else {
+            excludedDisplays.insert(display.id)
+        }
+    }
+
+    #if DEBUG
+    /// プレビューやテスト用に、モニターの一覧を差し替える
+    func overrideDisplaysForPreview(_ displays: [DisplayInfo]) {
+        self.displays = displays
+    }
+    #endif
+
+    /// 表示中のモニターの台数
+    var shownDisplayCount: Int {
+        displays.filter { isShown(on: $0) }.count
+    }
+
     /// 画面に出す強さ（0〜1）。opacity から計算するので、変更の通知も opacity と一緒に届く
     var intensity: Double {
         get { OverlaySettings.intensity(forOpacity: opacity) }
@@ -59,6 +95,7 @@ final class OverlayController {
         isEnabled = saved.isEnabled
         opacity = saved.opacity
         style = saved.style
+        excludedDisplays = saved.excludedDisplays
         texture = TextureGenerator.makeTile(style: saved.style)
 
         // 画面の追加・取り外し・解像度変更に追従する（アプリと同じ寿命なので解除しない）
@@ -72,15 +109,20 @@ final class OverlayController {
     }
 
     private func persist() {
-        store.save(OverlaySettings(isEnabled: isEnabled, opacity: opacity, style: style))
+        store.save(OverlaySettings(
+            isEnabled: isEnabled, opacity: opacity, style: style, excludedDisplays: excludedDisplays))
     }
 
     func rebuild() {
         windows.forEach { $0.orderOut(nil) }
         windows.removeAll()
+        // オフのときもモニターの一覧は更新しておく（設定画面で選べるように）
+        let screens = NSScreen.screens
+        displays = screens.compactMap(\.displayInfo)
         guard isEnabled else { return }
 
-        for screen in NSScreen.screens {
+        for screen in screens {
+            if let id = screen.stableID, excludedDisplays.contains(id) { continue }
             let window = NSWindow(
                 contentRect: screen.frame, styleMask: .borderless,
                 backing: .buffered, defer: false)

@@ -11,6 +11,8 @@ struct OverlaySettings: Equatable, Sendable {
     var isEnabled = true
     var opacity = 0.15
     var style: TextureStyle = .paper
+    /// 表示しないモニターの UUID。除外を覚える方式なので、新しく接続したモニターには自動で表示される
+    var excludedDisplays: Set<String> = []
 
     /// 画面に出す強さ（0〜1）。不透明度 0〜maxOpacity に比例する
     static func intensity(forOpacity opacity: Double) -> Double { opacity / maxOpacity }
@@ -26,6 +28,7 @@ struct SettingsStore {
         static let isEnabled = "overlay.isEnabled"
         static let opacity = "overlay.opacity"
         static let style = "overlay.style"
+        static let excludedDisplays = "overlay.excludedDisplays"
     }
 
     let defaults: UserDefaults
@@ -47,6 +50,9 @@ struct SettingsStore {
         if let raw = defaults.string(forKey: Key.style), let style = TextureStyle(rawValue: raw) {
             settings.style = style
         }
+        if let ids = defaults.stringArray(forKey: Key.excludedDisplays) {
+            settings.excludedDisplays = Set(ids)
+        }
         return settings
     }
 
@@ -54,5 +60,6 @@ struct SettingsStore {
         defaults.set(settings.isEnabled, forKey: Key.isEnabled)
         defaults.set(settings.opacity, forKey: Key.opacity)
         defaults.set(settings.style.rawValue, forKey: Key.style)
+        defaults.set(settings.excludedDisplays.sorted(), forKey: Key.excludedDisplays)
     }
 }

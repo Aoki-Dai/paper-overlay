@@ -16,6 +16,11 @@ struct SettingsPanel: View {
                     intensity: $overlay.intensity,
                     showsRecommended: showRecommended,
                     showsPresets: showPresets)
+                // モニターが 1 台なら選ぶものがないので出さない
+                if overlay.displays.count > 1 {
+                    DisplaySection(overlay: overlay)
+                        .transition(.opacity)
+                }
             }
             .disabled(!overlay.isEnabled)
             .opacity(overlay.isEnabled ? 1 : 0.45)
@@ -66,7 +71,10 @@ private struct PanelHeader: View {
     private var status: String {
         guard overlay.isEnabled else { return "オフ" }
         let percent = overlay.intensity.formatted(.percent.precision(.fractionLength(0)))
-        return "\(overlay.style.title) · \(percent)"
+        let displays = overlay.displays.count > 1
+            ? " · \(overlay.shownDisplayCount)/\(overlay.displays.count) 画面"
+            : ""
+        return "\(overlay.style.title) · \(percent)\(displays)"
     }
 }
 
@@ -283,6 +291,62 @@ private struct PresetChip: View {
         }
         .buttonStyle(.plain)
         .help(isRecommended ? "おすすめの強さ" : "")
+    }
+}
+
+// MARK: - Displays
+
+private struct DisplaySection: View {
+    let overlay: OverlayController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionTitle("モニター")
+            VStack(spacing: 0) {
+                ForEach(Array(overlay.displays.enumerated()), id: \.element.id) { index, display in
+                    if index > 0 {
+                        Divider().padding(.leading, 36)
+                    }
+                    DisplayRow(overlay: overlay, display: display)
+                }
+            }
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(0.04))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            }
+        }
+    }
+}
+
+/// パネル用の 1 行：アイコンと名前を左、スイッチを右にそろえる
+private struct DisplayRow: View {
+    let overlay: OverlayController
+    let display: DisplayInfo
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(display.name)
+                .font(.callout)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            Toggle(display.name, isOn: Binding(
+                get: { overlay.isShown(on: display) },
+                set: { isShown in withAnimation(.snappy) { overlay.setShown(isShown, on: display) } }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .labelsHidden()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
     }
 }
 

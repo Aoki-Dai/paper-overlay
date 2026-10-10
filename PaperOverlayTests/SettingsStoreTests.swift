@@ -17,7 +17,8 @@ struct SettingsStoreTests {
 
     @Test func savedSettingsComeBack() {
         let store = makeStore()
-        let settings = OverlaySettings(isEnabled: false, opacity: 0.07, style: .ePaper)
+        let settings = OverlaySettings(
+            isEnabled: false, opacity: 0.07, style: .ePaper, excludedDisplays: ["A-UUID", "B-UUID"])
         store.save(settings)
         #expect(store.load() == settings)
     }
@@ -46,5 +47,23 @@ struct SettingsStoreTests {
 
     @Test func defaultsAreRecommended() {
         #expect(OverlaySettings() == OverlaySettings.recommended)
+    }
+
+    /// 除外していないモニター（新しく接続したものを含む）には表示する
+    @MainActor
+    @Test func excludedDisplaysAreHiddenOthersShown() {
+        let overlay = OverlayController(store: makeStore())
+        overlay.isEnabled = false
+        let a = DisplayInfo(id: "A", name: "A", isBuiltIn: true)
+        let b = DisplayInfo(id: "B", name: "B", isBuiltIn: false)
+        overlay.overrideDisplaysForPreview([a, b])
+        overlay.setShown(false, on: b)
+        // 設定を変えると実際の画面構成で作り直されるので、一覧をもう一度差し替える
+        overlay.overrideDisplaysForPreview([a, b])
+        #expect(overlay.isShown(on: a))
+        #expect(!overlay.isShown(on: b))
+        #expect(overlay.shownDisplayCount == 1)
+        overlay.setShown(true, on: b)
+        #expect(overlay.excludedDisplays.isEmpty)
     }
 }
