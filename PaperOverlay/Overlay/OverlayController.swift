@@ -48,8 +48,13 @@ final class OverlayController {
             window.collectionBehavior = [
                 .canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle,
             ]
+            #if DEBUG
+            // 見た目を screencapture で確認できるよう、デバッグビルドでは写す
+            window.sharingType = .readOnly
+            #else
             // スクリーンショットや画面共有に写さない
             window.sharingType = .none
+            #endif
             window.alphaValue = opacity
             window.setFrame(screen.frame, display: false)
             window.orderFrontRegardless()
