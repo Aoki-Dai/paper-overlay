@@ -1,0 +1,47 @@
+{
+  "title": "Paper Overlay",
+  "steps": [
+    {
+      "name": "XcodeGen でプロジェクト構成",
+      "status": "done"
+    },
+    {
+      "name": "MVP を責務ごとのファイルに移植",
+      "status": "doing",
+      "subtasks": [
+        {
+          "name": "TextureGenerator",
+          "done": true
+        },
+        {
+          "name": "OverlayController",
+          "done": true
+        },
+        {
+          "name": "MenuBarExtra のメニュー",
+          "done": true
+        },
+        {
+          "name": "ビルド・テスト",
+          "done": true
+        },
+        {
+          "name": "見た目の確認（ユーザー）",
+          "done": false
+        }
+      ]
+    },
+    {
+      "name": "設定の保存（Settings / 不透明度・オン／オフ）",
+      "status": "todo"
+    },
+    {
+      "name": "アプリ除外リスト",
+      "status": "todo"
+    },
+    {
+      "name": "差別化機能の 1 つめ",
+      "status": "todo"
+    }
+  ]
+}
