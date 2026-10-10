@@ -111,7 +111,11 @@ private struct DisplaySection: View {
                 set: { value in withAnimation(.snappy) { overlay.setCustomized(value, for: display) } }
             )) {
                 Text("個別に設定")
-                Text(isCustomized ? "このモニターだけ、下のスタイルと強さを使います" : "全体の設定（\(overlay.style.title) · \(percent(overlay.intensity))）に従います")
+                if isCustomized {
+                    Text("このモニターだけ、下のスタイルと強さを使います")
+                } else {
+                    Text("全体の設定（\(overlay.style.title) · \(percent(overlay.intensity))）に従います")
+                }
             }
             .disabled(!isShown)
 
@@ -159,7 +163,7 @@ private struct DisplaySection: View {
 struct DisplayToggle: View {
     let overlay: OverlayController
     let display: DisplayInfo
-    var title: String?
+    var title: LocalizedStringKey?
 
     var body: some View {
         Toggle(isOn: Binding(
@@ -182,9 +186,9 @@ struct DisplayToggle: View {
 }
 
 private struct SectionFooter: View {
-    let text: String
+    let text: LocalizedStringKey
 
-    init(_ text: String) { self.text = text }
+    init(_ text: LocalizedStringKey) { self.text = text }
 
     var body: some View {
         Text(text)

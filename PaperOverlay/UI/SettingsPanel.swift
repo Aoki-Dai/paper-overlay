@@ -56,6 +56,9 @@ private struct PanelHeader: View {
                 Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    // 英語など長くなる言語では 2 行まで折り返す
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.numericText())
                     .animation(.snappy, value: status)
             }
@@ -69,14 +72,14 @@ private struct PanelHeader: View {
     }
 
     private var status: String {
-        guard overlay.isEnabled else { return "オフ" }
+        guard overlay.isEnabled else { return String(localized: "オフ") }
         let percent = overlay.intensity.formatted(.percent.precision(.fractionLength(0)))
         let displays = overlay.displays.count > 1
-            ? " · \(overlay.shownDisplayCount)/\(overlay.displays.count) 画面"
+            ? String(localized: " · \(overlay.shownDisplayCount)/\(overlay.displays.count) 画面")
             : ""
         // 個別に設定したモニターは上の値と違う見た目なので、その台数も添える
         let customized = overlay.customizedDisplayCount > 0
-            ? "（個別 \(overlay.customizedDisplayCount) 台）"
+            ? String(localized: "（個別 \(overlay.customizedDisplayCount) 台）")
             : ""
         return "\(overlay.style.title) · \(percent)\(displays)\(customized)"
     }
@@ -294,7 +297,7 @@ private struct PresetChip: View {
             .contentShape(chipShape)
         }
         .buttonStyle(.plain)
-        .help(isRecommended ? "おすすめの強さ" : "")
+        .help(isRecommended ? Text("おすすめの強さ") : Text(verbatim: ""))
     }
 }
 
@@ -361,10 +364,10 @@ private struct DisplayRow: View {
 
     /// 個別に設定していれば、その内容。そうでなければ全体の設定に従うことを示す
     private var detail: String {
-        guard overlay.isShown(on: display) else { return "表示しない" }
-        guard overlay.isCustomized(display) else { return "全体の設定" }
+        guard overlay.isShown(on: display) else { return String(localized: "表示しない") }
+        guard overlay.isCustomized(display) else { return String(localized: "全体の設定") }
         let percent = overlay.intensity(for: display).formatted(.percent.precision(.fractionLength(0)))
-        return "個別：\(overlay.style(for: display).title) · \(percent)"
+        return String(localized: "個別：\(overlay.style(for: display).title) · \(percent)")
     }
 }
 
@@ -379,7 +382,7 @@ private struct RecommendedButton: View {
         let recommended = OverlaySettings.recommended
         let percent = OverlaySettings.intensity(forOpacity: recommended.opacity)
             .formatted(.percent.precision(.fractionLength(0)))
-        let summary = "\(recommended.style.title) · 強さ \(percent)"
+        let summary = String(localized: "\(recommended.style.title) · 強さ \(percent)")
         Button {
             withAnimation(.snappy) { overlay.applyRecommended() }
         } label: {
@@ -387,7 +390,7 @@ private struct RecommendedButton: View {
                 Image(systemName: isApplied ? "checkmark.seal.fill" : "sparkles")
                     .foregroundStyle(Color.warmAccent)
                     .contentTransition(.symbolEffect(.replace))
-                Text(isApplied ? "おすすめ設定で表示中" : "おすすめ設定にする")
+                (isApplied ? Text("おすすめ設定で表示中") : Text("おすすめ設定にする"))
                     .font(.callout.weight(.medium))
                 Spacer(minLength: 4)
                 Text(summary)
@@ -454,9 +457,9 @@ private struct PanelFooter: View {
 // MARK: - Parts
 
 private struct SectionTitle: View {
-    let text: String
+    let text: LocalizedStringKey
 
-    init(_ text: String) { self.text = text }
+    init(_ text: LocalizedStringKey) { self.text = text }
 
     var body: some View {
         Text(text)
@@ -473,15 +476,15 @@ extension Color {
 extension TextureStyle {
     var title: String {
         switch self {
-        case .paper: "紙"
-        case .ePaper: "電子ペーパー"
+        case .paper: String(localized: "紙")
+        case .ePaper: String(localized: "電子ペーパー")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .paper: "繊維のある温かい質感"
-        case .ePaper: "落ち着いた無彩色"
+        case .paper: String(localized: "繊維のある温かい質感")
+        case .ePaper: String(localized: "落ち着いた無彩色")
         }
     }
 }
