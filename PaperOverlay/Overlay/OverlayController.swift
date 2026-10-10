@@ -5,7 +5,7 @@ import Observation
 @MainActor
 @Observable
 final class OverlayController {
-    static let opacityPresets: [Double] = [0.15, 0.20, 0.25, 0.30]
+    static let opacityPresets: [Double] = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30]
 
     var isEnabled = true {
         didSet { rebuild() }
@@ -15,8 +15,16 @@ final class OverlayController {
         didSet { windows.forEach { $0.alphaValue = opacity } }
     }
 
+    var style: TextureStyle = .paper {
+        didSet {
+            guard style != oldValue else { return }
+            texture = TextureGenerator.makeTile(style: style)
+            windows.forEach { $0.backgroundColor = NSColor(patternImage: texture) }
+        }
+    }
+
     @ObservationIgnored private var windows: [NSWindow] = []
-    @ObservationIgnored private let texture = TextureGenerator.makeTile()
+    @ObservationIgnored private var texture = TextureGenerator.makeTile()
     @ObservationIgnored private var screenObserver: (any NSObjectProtocol)?
 
     init() {

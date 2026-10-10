@@ -20,6 +20,15 @@ private struct MenuContent: View {
 
         Divider()
 
+        Picker("Style", selection: $overlay.style) {
+            ForEach(TextureStyle.allCases) { style in
+                Text(style.title).tag(style)
+            }
+        }
+        .pickerStyle(.inline)
+
+        Divider()
+
         Picker("Opacity", selection: $overlay.opacity) {
             ForEach(OverlayController.opacityPresets, id: \.self) { value in
                 Text(value, format: .percent.precision(.fractionLength(0))).tag(value)
