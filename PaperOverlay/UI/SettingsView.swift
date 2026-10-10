@@ -77,19 +77,18 @@ private struct GeneralSettings: View {
 
 // MARK: - モニター
 
-private struct DisplaySettings: View {
+struct DisplaySettings: View {
     let overlay: OverlayController
 
     var body: some View {
         Form {
+            ForEach(overlay.displays) { display in
+                DisplaySection(overlay: overlay, display: display)
+            }
+
             Section {
-                ForEach(overlay.displays) { display in
-                    DisplayToggle(overlay: overlay, display: display)
-                }
-            } header: {
-                Text("表示するモニター")
             } footer: {
-                SectionFooter("新しく接続したモニターには、自動で表示されます。")
+                SectionFooter("個別に設定していないモニターは、メニューバーのパネルの設定に従います。新しく接続したモニターにも自動で表示されます。")
             }
         }
         .formStyle(.grouped)
@@ -98,22 +97,84 @@ private struct DisplaySettings: View {
     }
 }
 
-/// モニター 1 台ぶんのオン／オフ。パネルと設定ウインドウの両方で使う
+/// モニター 1 台ぶん：表示のオン／オフと、個別の質感
+private struct DisplaySection: View {
+    let overlay: OverlayController
+    let display: DisplayInfo
+
+    var body: some View {
+        let isShown = overlay.isShown(on: display)
+        let isCustomized = overlay.isCustomized(display)
+
+        Section {
+            DisplayToggle(overlay: overlay, display: display, title: "このモニターに表示")
+
+            Toggle(isOn: Binding(
+                get: { isCustomized },
+                set: { value in withAnimation(.snappy) { overlay.setCustomized(value, for: display) } }
+            )) {
+                Text("個別に設定")
+                Text(isCustomized ? "このモニターだけ、下のスタイルと強さを使います" : "全体の設定（\(overlay.style.title) · \(percent(overlay.intensity))）に従います")
+            }
+            .disabled(!isShown)
+
+            if isCustomized {
+                Picker("スタイル", selection: Binding(
+                    get: { overlay.style(for: display) },
+                    set: { overlay.setStyle($0, for: display) }
+                )) {
+                    ForEach(TextureStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!isShown)
+
+                LabeledContent("強さ") {
+                    HStack(spacing: 10) {
+                        Slider(value: Binding(
+                            get: { overlay.intensity(for: display) },
+                            set: { overlay.setIntensity($0, for: display) }
+                        ), in: 0...1)
+                        Text(percent(overlay.intensity(for: display)))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
+                .disabled(!isShown)
+            }
+        } header: {
+            Label(display.name, systemImage: display.isBuiltIn ? "laptopcomputer" : "display")
+        }
+    }
+
+    private func percent(_ value: Double) -> String {
+        value.formatted(.percent.precision(.fractionLength(0)))
+    }
+}
+
+/// モニター 1 台ぶんのオン／オフ
 struct DisplayToggle: View {
     let overlay: OverlayController
     let display: DisplayInfo
+    var title: String?
 
     var body: some View {
         Toggle(isOn: Binding(
             get: { overlay.isShown(on: display) },
             set: { overlay.setShown($0, on: display) }
         )) {
-            Label {
-                Text(display.name)
-                    .lineLimit(1)
-            } icon: {
-                Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
-                    .foregroundStyle(.secondary)
+            if let title {
+                Text(title)
+            } else {
+                Label {
+                    Text(display.name)
+                        .lineLimit(1)
+                } icon: {
+                    Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

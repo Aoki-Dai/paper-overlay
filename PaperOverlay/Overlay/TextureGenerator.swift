@@ -16,7 +16,7 @@ struct XorShift64 {
 }
 
 /// 見た目の種類。生成パラメータの組み合わせで表す
-enum TextureStyle: String, CaseIterable, Identifiable, Sendable {
+enum TextureStyle: String, CaseIterable, Identifiable, Codable, Sendable {
     case paper
     case ePaper
 

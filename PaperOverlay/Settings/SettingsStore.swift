@@ -1,5 +1,11 @@
 import Foundation
 
+/// モニター 1 台ぶんの個別の質感。設定していないモニターは全体の設定に従う
+struct DisplayOverride: Codable, Equatable, Sendable {
+    var style: TextureStyle
+    var opacity: Double
+}
+
 /// 保存する設定の値
 struct OverlaySettings: Equatable, Sendable {
     /// 実際の不透明度の上限。画面では 0〜100% の「強さ」として見せ、この値を 100% にあてる
@@ -13,6 +19,8 @@ struct OverlaySettings: Equatable, Sendable {
     var style: TextureStyle = .paper
     /// 表示しないモニターの UUID。除外を覚える方式なので、新しく接続したモニターには自動で表示される
     var excludedDisplays: Set<String> = []
+    /// モニターの UUID ごとの個別の質感
+    var displayOverrides: [String: DisplayOverride] = [:]
 
     /// 画面に出す強さ（0〜1）。不透明度 0〜maxOpacity に比例する
     static func intensity(forOpacity opacity: Double) -> Double { opacity / maxOpacity }
@@ -29,6 +37,7 @@ struct SettingsStore {
         static let opacity = "overlay.opacity"
         static let style = "overlay.style"
         static let excludedDisplays = "overlay.excludedDisplays"
+        static let displayOverrides = "overlay.displayOverrides"
     }
 
     let defaults: UserDefaults
@@ -53,6 +62,15 @@ struct SettingsStore {
         if let ids = defaults.stringArray(forKey: Key.excludedDisplays) {
             settings.excludedDisplays = Set(ids)
         }
+        if let data = defaults.data(forKey: Key.displayOverrides),
+           let overrides = try? JSONDecoder().decode([String: DisplayOverride].self, from: data) {
+            let range = OverlaySettings.opacityRange
+            settings.displayOverrides = overrides.mapValues { override in
+                var override = override
+                override.opacity = min(max(override.opacity, range.lowerBound), range.upperBound)
+                return override
+            }
+        }
         return settings
     }
 
@@ -61,5 +79,8 @@ struct SettingsStore {
         defaults.set(settings.opacity, forKey: Key.opacity)
         defaults.set(settings.style.rawValue, forKey: Key.style)
         defaults.set(settings.excludedDisplays.sorted(), forKey: Key.excludedDisplays)
+        if let data = try? JSONEncoder().encode(settings.displayOverrides) {
+            defaults.set(data, forKey: Key.displayOverrides)
+        }
     }
 }

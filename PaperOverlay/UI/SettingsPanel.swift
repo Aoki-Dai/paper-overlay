@@ -332,10 +332,16 @@ private struct DisplayRow: View {
             Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
-            Text(display.name)
-                .font(.callout)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(display.name)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(overlay.isCustomized(display) ? AnyShapeStyle(Color.warmAccent) : AnyShapeStyle(.secondary))
+                    .contentTransition(.numericText())
+            }
             Spacer(minLength: 8)
             Toggle(display.name, isOn: Binding(
                 get: { overlay.isShown(on: display) },
@@ -347,6 +353,14 @@ private struct DisplayRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
+    }
+
+    /// 個別に設定していれば、その内容。そうでなければ全体の設定に従うことを示す
+    private var detail: String {
+        guard overlay.isShown(on: display) else { return "表示しない" }
+        guard overlay.isCustomized(display) else { return "全体の設定" }
+        let percent = overlay.intensity(for: display).formatted(.percent.precision(.fractionLength(0)))
+        return "個別：\(overlay.style(for: display).title) · \(percent)"
     }
 }
 
