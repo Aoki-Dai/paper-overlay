@@ -25,6 +25,25 @@ struct OverlaySettings: Equatable, Sendable {
     /// 画面に出す強さ（0〜1）。不透明度 0〜maxOpacity に比例する
     static func intensity(forOpacity opacity: Double) -> Double { opacity / maxOpacity }
     static func opacity(forIntensity intensity: Double) -> Double { min(max(intensity, 0), 1) * maxOpacity }
+    static func clampedOpacity(_ opacity: Double) -> Double {
+        min(max(opacity, opacityRange.lowerBound), opacityRange.upperBound)
+    }
+}
+
+/// 設定の保存先。アプリでは UserDefaults、テストではメモリ上の入れ物を使う
+protocol SettingsStorage: AnyObject {
+    func object(forKey key: String) -> Any?
+    func set(_ value: Any?, forKey key: String)
+}
+
+extension UserDefaults: SettingsStorage {}
+
+/// ディスクに書かない保存先（テストやプレビュー用）
+final class InMemorySettingsStorage: SettingsStorage {
+    private var values: [String: Any] = [:]
+
+    func object(forKey key: String) -> Any? { values[key] }
+    func set(_ value: Any?, forKey key: String) { values[key] = value }
 }
 
 /// 設定を UserDefaults に読み書きする
@@ -40,46 +59,56 @@ struct SettingsStore {
         static let displayOverrides = "overlay.displayOverrides"
     }
 
-    let defaults: UserDefaults
+    let defaults: any SettingsStorage
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: any SettingsStorage = UserDefaults.standard) {
         self.defaults = defaults
     }
 
     /// 保存されていない項目・壊れた値は既定値にする
     func load() -> OverlaySettings {
         var settings = OverlaySettings()
-        if defaults.object(forKey: Key.isEnabled) != nil {
-            settings.isEnabled = defaults.bool(forKey: Key.isEnabled)
+        // bool(forKey:) や double(forKey:) は、型の違う値を false や 0 として返してしまう。
+        // 0 は「見えない」になるので、数値として読めたときだけ使う
+        if let isEnabled = defaults.object(forKey: Key.isEnabled) as? Bool {
+            settings.isEnabled = isEnabled
         }
-        if defaults.object(forKey: Key.opacity) != nil {
-            let range = OverlaySettings.opacityRange
-            settings.opacity = min(max(defaults.double(forKey: Key.opacity), range.lowerBound), range.upperBound)
+        if let opacity = (defaults.object(forKey: Key.opacity) as? NSNumber)?.doubleValue, opacity.isFinite {
+            settings.opacity = OverlaySettings.clampedOpacity(opacity)
         }
-        if let raw = defaults.string(forKey: Key.style), let style = TextureStyle(rawValue: raw) {
+        if let raw = defaults.object(forKey: Key.style) as? String, let style = TextureStyle(rawValue: raw) {
             settings.style = style
         }
-        if let ids = defaults.stringArray(forKey: Key.excludedDisplays) {
+        if let ids = defaults.object(forKey: Key.excludedDisplays) as? [String] {
             settings.excludedDisplays = Set(ids)
         }
-        if let data = defaults.data(forKey: Key.displayOverrides),
+        if let data = defaults.object(forKey: Key.displayOverrides) as? Data,
            let overrides = try? JSONDecoder().decode([String: DisplayOverride].self, from: data) {
-            let range = OverlaySettings.opacityRange
             settings.displayOverrides = overrides.mapValues { override in
                 var override = override
-                override.opacity = min(max(override.opacity, range.lowerBound), range.upperBound)
+                override.opacity = OverlaySettings.clampedOpacity(override.opacity)
                 return override
             }
         }
         return settings
     }
 
-    func save(_ settings: OverlaySettings) {
-        defaults.set(settings.isEnabled, forKey: Key.isEnabled)
-        defaults.set(settings.opacity, forKey: Key.opacity)
-        defaults.set(settings.style.rawValue, forKey: Key.style)
-        defaults.set(settings.excludedDisplays.sorted(), forKey: Key.excludedDisplays)
-        if let data = try? JSONEncoder().encode(settings.displayOverrides) {
+    /// previous と違う項目だけを書く（スライダーを動かすたびに全項目を書き直さないように）
+    func save(_ settings: OverlaySettings, previous: OverlaySettings? = nil) {
+        if settings.isEnabled != previous?.isEnabled {
+            defaults.set(settings.isEnabled, forKey: Key.isEnabled)
+        }
+        if settings.opacity != previous?.opacity {
+            defaults.set(settings.opacity, forKey: Key.opacity)
+        }
+        if settings.style != previous?.style {
+            defaults.set(settings.style.rawValue, forKey: Key.style)
+        }
+        if settings.excludedDisplays != previous?.excludedDisplays {
+            defaults.set(settings.excludedDisplays.sorted(), forKey: Key.excludedDisplays)
+        }
+        if settings.displayOverrides != previous?.displayOverrides,
+           let data = try? JSONEncoder().encode(settings.displayOverrides) {
             defaults.set(data, forKey: Key.displayOverrides)
         }
     }

@@ -83,12 +83,7 @@ struct DisplaySettings: View {
     var body: some View {
         Form {
             ForEach(overlay.displays) { display in
-                DisplaySection(overlay: overlay, display: display)
-            }
-
-            Section {
-            } footer: {
-                SectionFooter("個別に設定していないモニターは、メニューバーのパネルの設定に従います。新しく接続したモニターにも自動で表示されます。")
+                DisplaySection(overlay: overlay, display: display, showsNote: display == overlay.displays.last)
             }
         }
         .formStyle(.grouped)
@@ -101,6 +96,8 @@ struct DisplaySettings: View {
 private struct DisplaySection: View {
     let overlay: OverlayController
     let display: DisplayInfo
+    /// 最後のモニターの下にだけ、全体についての注記を出す
+    let showsNote: Bool
 
     var body: some View {
         let isShown = overlay.isShown(on: display)
@@ -146,6 +143,10 @@ private struct DisplaySection: View {
             }
         } header: {
             Label(display.name, systemImage: display.isBuiltIn ? "laptopcomputer" : "display")
+        } footer: {
+            if showsNote {
+                SectionFooter("個別に設定していないモニターは、メニューバーのパネルの設定に従います。新しく接続したモニターにも自動で表示されます。")
+            }
         }
     }
 
@@ -193,5 +194,5 @@ private struct SectionFooter: View {
 }
 
 #Preview {
-    SettingsView(overlay: OverlayController(store: SettingsStore(defaults: UserDefaults(suiteName: "preview")!)))
+    SettingsView(overlay: OverlayController(store: SettingsStore(defaults: InMemorySettingsStorage())))
 }

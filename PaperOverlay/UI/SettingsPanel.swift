@@ -74,7 +74,11 @@ private struct PanelHeader: View {
         let displays = overlay.displays.count > 1
             ? " · \(overlay.shownDisplayCount)/\(overlay.displays.count) 画面"
             : ""
-        return "\(overlay.style.title) · \(percent)\(displays)"
+        // 個別に設定したモニターは上の値と違う見た目なので、その台数も添える
+        let customized = overlay.customizedDisplayCount > 0
+            ? "（個別 \(overlay.customizedDisplayCount) 台）"
+            : ""
+        return "\(overlay.style.title) · \(percent)\(displays)\(customized)"
     }
 }
 
@@ -483,5 +487,5 @@ extension TextureStyle {
 }
 
 #Preview {
-    SettingsPanel(overlay: OverlayController(store: SettingsStore(defaults: UserDefaults(suiteName: "preview")!)))
+    SettingsPanel(overlay: OverlayController(store: SettingsStore(defaults: InMemorySettingsStorage())))
 }

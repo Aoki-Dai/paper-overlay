@@ -229,37 +229,47 @@ enum TextureGenerator {
         let fx = x - Double(x0), fy = y - Double(y0)
         // 0.5px 刻みで同じ画素に 2 回足されるので半分にする
         let a = amount * 0.5
-        let weights = [(0, 0, (1 - fx) * (1 - fy)), (1, 0, fx * (1 - fy)), (0, 1, (1 - fx) * fy), (1, 1, fx * fy)]
-        for (dx, dy, w) in weights {
-            let px = ((x0 + dx) % size + size) % size
-            let py = ((y0 + dy) % size + size) % size
-            luminance[py * size + px] += a * w
-        }
+        // 繊維 1 本で百回以上呼ばれるので、配列を作らずに 4 画素へ直接足す
+        let left = (x0 % size + size) % size, right = (left + 1) % size
+        let top = (y0 % size + size) % size, bottom = (top + 1) % size
+        luminance[top * size + left] += a * (1 - fx) * (1 - fy)
+        luminance[top * size + right] += a * fx * (1 - fy)
+        luminance[bottom * size + left] += a * (1 - fx) * fy
+        luminance[bottom * size + right] += a * fx * fy
     }
 
     private static func channel(_ value: Double) -> UInt8 {
         UInt8(max(0, min(1, value)) * 255)
     }
 
+    /// タイルの画素（RGBA 8bit）。重い計算なのでメインスレッドの外で呼んでよい
+    static func tileData(pixelSize: Int = 512, style: TextureStyle = .paper, seed: UInt64 = defaultSeed) -> Data {
+        var data = Data(count: pixelSize * pixelSize * 4)
+        data.withUnsafeMutableBytes { raw in
+            render(size: pixelSize, style: style, seed: seed, into: raw.bindMemory(to: UInt8.self))
+        }
+        return data
+    }
+
     /// Retina で 1 画素 = 1 物理ピクセルになるよう、scale 倍の画素数でポイントサイズの画像を作る
     ///
-    /// 画素は CGImage が持つ領域に直接書き込む。NSBitmapImageRep を経由すると、
+    /// 画素は CGImage がそのまま持つ。NSBitmapImageRep を経由すると、
     /// 模様として使うときに CGImage へもう 1 枚コピーされ、タイルを 2 重に持つことになるため。
-    static func makeTile(
-        pixelSize: Int = 512, scale: CGFloat = 2, style: TextureStyle = .paper, seed: UInt64 = defaultSeed
-    ) -> NSImage {
-        let bytesPerRow = pixelSize * 4
-        let data = NSMutableData(length: bytesPerRow * pixelSize)!
-        render(size: pixelSize, style: style, seed: seed, into: UnsafeMutableBufferPointer(
-            start: data.mutableBytes.assumingMemoryBound(to: UInt8.self), count: data.length))
-
+    static func makeTile(data: Data, pixelSize: Int = 512, scale: CGFloat = 2) -> NSImage {
         let image = CGImage(
             width: pixelSize, height: pixelSize, bitsPerComponent: 8, bitsPerPixel: 32,
-            bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+            bytesPerRow: pixelSize * 4, space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
-            provider: CGDataProvider(data: data)!, decode: nil, shouldInterpolate: false,
+            provider: CGDataProvider(data: data as CFData)!, decode: nil, shouldInterpolate: false,
             intent: .defaultIntent)!
         return NSImage(cgImage: image, size: NSSize(
             width: CGFloat(pixelSize) / scale, height: CGFloat(pixelSize) / scale))
+    }
+
+    /// 生成から画像化までを一度に行う（小さい見本やテスト用）
+    static func makeTile(
+        pixelSize: Int = 512, scale: CGFloat = 2, style: TextureStyle = .paper, seed: UInt64 = defaultSeed
+    ) -> NSImage {
+        makeTile(data: tileData(pixelSize: pixelSize, style: style, seed: seed), pixelSize: pixelSize, scale: scale)
     }
 }

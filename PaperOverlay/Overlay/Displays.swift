@@ -21,8 +21,14 @@ extension NSScreen {
         return CFUUIDCreateString(nil, uuid) as String
     }
 
+    /// 設定に使う識別子。UUID が取れないモニター（一部の仮想ディスプレイなど）でも、
+    /// 操作できるように画面番号で代用する（こちらは接続し直すと変わることがある）
+    var overlayID: String? {
+        stableID ?? displayID.map { "display-\($0)" }
+    }
+
     var displayInfo: DisplayInfo? {
-        guard let id = stableID, let displayID else { return nil }
+        guard let id = overlayID, let displayID else { return nil }
         return DisplayInfo(id: id, name: localizedName, isBuiltIn: CGDisplayIsBuiltin(displayID) != 0)
     }
 }

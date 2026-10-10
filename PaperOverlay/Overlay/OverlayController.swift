@@ -110,14 +110,21 @@ final class OverlayController {
         set { opacity = OverlaySettings.opacity(forIntensity: newValue) }
     }
 
+    /// 個別に設定したモニターが 1 台でもあれば、画面全体としてはおすすめの見た目ではない
     var isRecommended: Bool {
-        isEnabled && style == OverlaySettings.recommended.style
+        isEnabled && displayOverrides.isEmpty && style == OverlaySettings.recommended.style
             && abs(opacity - OverlaySettings.recommended.opacity) < 0.001
     }
 
-    /// おすすめの設定をまとめて適用する
+    /// 個別に設定しているモニターの台数
+    var customizedDisplayCount: Int {
+        displays.filter { isCustomized($0) }.count
+    }
+
+    /// おすすめの設定を、すべてのモニターにまとめて適用する（個別の設定は解除する）
     func applyRecommended() {
         let recommended = OverlaySettings.recommended
+        displayOverrides = [:]
         style = recommended.style
         opacity = recommended.opacity
         isEnabled = recommended.isEnabled
@@ -133,6 +140,10 @@ final class OverlayController {
     @ObservationIgnored private var windows: [OverlayWindow] = []
     /// スタイルごとのタイル。使われなくなったものは捨てる
     @ObservationIgnored private var patterns: [TextureStyle: NSColor] = [:]
+    /// メインスレッドの外で生成中のスタイル
+    @ObservationIgnored private var generating: Set<TextureStyle> = []
+    /// 最後に保存した設定（変わった項目だけを書くため）
+    @ObservationIgnored private var lastSaved: OverlaySettings
     @ObservationIgnored private var screenObserver: (any NSObjectProtocol)?
 
     init(store: SettingsStore = SettingsStore()) {
@@ -144,6 +155,7 @@ final class OverlayController {
         style = saved.style
         excludedDisplays = saved.excludedDisplays
         displayOverrides = saved.displayOverrides
+        lastSaved = saved
 
         // 画面の追加・取り外し・解像度変更に追従する（アプリと同じ寿命なので解除しない）
         screenObserver = NotificationCenter.default.addObserver(
@@ -156,16 +168,29 @@ final class OverlayController {
     }
 
     private func persist() {
-        store.save(OverlaySettings(
+        let settings = OverlaySettings(
             isEnabled: isEnabled, opacity: opacity, style: style,
-            excludedDisplays: excludedDisplays, displayOverrides: displayOverrides))
+            excludedDisplays: excludedDisplays, displayOverrides: displayOverrides)
+        guard settings != lastSaved else { return }
+        store.save(settings, previous: lastSaved)
+        lastSaved = settings
     }
 
-    private func pattern(for style: TextureStyle) -> NSColor {
+    /// タイルがまだなければ、メインスレッドの外で作り始めて nil を返す。
+    /// できあがったら applyAppearance をやり直すので、それまでは前の見た目のまま
+    private func pattern(for style: TextureStyle) -> NSColor? {
         if let pattern = patterns[style] { return pattern }
-        let pattern = NSColor(patternImage: TextureGenerator.makeTile(style: style))
-        patterns[style] = pattern
-        return pattern
+        guard !generating.contains(style) else { return nil }
+        generating.insert(style)
+        Task {
+            let data = await Task.detached(priority: .userInitiated) {
+                TextureGenerator.tileData(style: style)
+            }.value
+            generating.remove(style)
+            patterns[style] = NSColor(patternImage: TextureGenerator.makeTile(data: data))
+            applyAppearance()
+        }
+        return nil
     }
 
     /// 各ウインドウに、そのモニターのスタイルと不透明度を反映する
@@ -177,8 +202,7 @@ final class OverlayController {
             let opacity = override?.opacity ?? opacity
             used.insert(style)
 
-            let pattern = pattern(for: style)
-            if overlay.window.backgroundColor !== pattern {
+            if let pattern = pattern(for: style), overlay.window.backgroundColor !== pattern {
                 overlay.window.backgroundColor = pattern
             }
             if overlay.window.alphaValue != opacity {
@@ -186,7 +210,7 @@ final class OverlayController {
             }
         }
         // どの画面でも使っていないタイル（1 枚 1MB）は手放す
-        patterns = patterns.filter { used.contains($0.key) }
+        patterns = patterns.filter { used.contains($0.key) || generating.contains($0.key) }
     }
 
     func rebuild() {
@@ -201,13 +225,15 @@ final class OverlayController {
         }
 
         for screen in screens {
-            let displayID = screen.stableID
+            let displayID = screen.overlayID
             if let displayID, excludedDisplays.contains(displayID) { continue }
             let window = NSWindow(
                 contentRect: screen.frame, styleMask: .borderless,
                 backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.isOpaque = false
+            // タイルができるまでは透明にしておく（既定の背景色だと灰色が一瞬見える）
+            window.backgroundColor = .clear
             window.ignoresMouseEvents = true
             window.hasShadow = false
             window.level = .screenSaver
