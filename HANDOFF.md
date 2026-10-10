@@ -70,7 +70,7 @@ reference/mvp-main.swift           最初の単一ファイル版（参照用。
 6. **スケジュール**：日の出・日の入り、または時刻指定で自動でオン／オフ
 7. **差別化機能の 1 つめ**：App Intents（ショートカット.app や Siri から、オン／オフ・強さ・スタイルを操作）が最も手軽で効果が大きい見込み
 8. テクスチャの種類を増やす、Desk Lamp モード
-9. 配布の準備：アプリアイコン、英語の UI、Developer ID 署名と公証、メモリ・CPU の計測
+9. 配布の改善：英語の UI。Apple Developer Program に登録したら Developer ID 署名と公証（今は登録しない方針）。App Store 版はサンドボックス必須なので、まずフルスクリーンの上に重なるかを実験する
 
 ## 本家 Paperman との機能差（2026-10-10 に paperman.cc で確認）
 
@@ -86,9 +86,23 @@ reference/mvp-main.swift           最初の単一ファイル版（参照用。
 | 強さの調整（不透明度 15〜30%） | ✅（0〜30% を 0〜100% で表示） |
 | クリックスルー、フォーカスを奪わない | ✅ |
 | メモリ 25MB 未満、待機時の CPU 0% | ✅ Release 版で phys_footprint 24MB、待機中の CPU 0.0%（2026-10-10、モニター 2 台） |
-| 配布：App Store、直販、Setapp | ✕ → 手順 9 |
+| 配布：App Store、直販、Setapp | △ GitHub Releases と Homebrew（自分の tap）で配布中。署名なし |
 
 こちらにしかないもの：モニターごとの質感設定、電子ペーパー風スタイル、おすすめ設定ボタン、見本つきのスタイル選択、パネルの見せ方の設定、他アプリのフルスクリーン中にも効く（サンドボックスなし）
+
+## 配布（2026-10-10 から）
+
+- 公開リポジトリ：https://github.com/Aoki-Dai/paper-overlay（MIT）。「Paperman にインスパイアされた非公式プロジェクト」と README に明記
+- Homebrew の tap：https://github.com/Aoki-Dai/homebrew-tap（ローカルは `~/agent-dev/homebrew-tap`）
+  - インストール：`brew install --cask aoki-dai/tap/paper-overlay`
+- **Apple Developer Program には登録しない方針**。アプリはアドホック署名のまま配る。初回は「システム設定 → プライバシーとセキュリティ → このまま開く」が必要（README と cask の caveats に記載）
+- リリースの手順
+  1. `project.yml` の `MARKETING_VERSION` を上げてコミット
+  2. `scripts/release.sh --publish`（ユニバーサル版をビルド → zip → push → `gh release create v<版>`）。最後に sha256 が表示される
+  3. `~/agent-dev/homebrew-tap/Casks/paper-overlay.rb` の `version` と `sha256` を書き換えて push
+  4. `brew update && brew fetch --cask aoki-dai/tap/paper-overlay` でダウンロードとハッシュを確認
+- cask の macOS 要件は `depends_on macos: :tahoe`（Homebrew 7 では `">= :tahoe"` の書き方は非推奨）
+- **`brew style` は実行しない**：開発用の gem を `/opt/homebrew/Library/Homebrew/vendor/bundle` に入れようとして途中で失敗し、`json-3.0.2` が Homebrew の Ruby と食い違って `brew tap` や `brew info` が動かなくなった（2026-10-10）。`json-3.0.2` を退避して直した
 
 ## 計測（2026-10-10、Release ビルド、モニター 2 台）
 
