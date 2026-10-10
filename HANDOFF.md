@@ -34,7 +34,7 @@
 - **設定ウインドウ**（⌘,）
   - 「一般」タブ：ログイン時に起動（`SMAppService`）、おすすめ／プリセットの表示切り替え
   - 「モニター」タブ：モニターごとのオン／オフと、**個別の質感**（スタイル・強さ）。個別に設定していないモニターは全体の設定に従う
-- **アプリアイコン**：紙色の角丸に端を折った紙。下地に `TextureGenerator` の紙の質感を使う（生成スクリプトはリポジトリ外。作り直すときは同じ方法で描いて `AppIcon.appiconset` に入れる）
+- **アプリアイコン**：紙色の角丸に端を折った紙。下地に `TextureGenerator` の紙の質感を使う（生成スクリプトは `scripts/make-icon/main.swift`。使い方はファイル冒頭のコメント）
 - **設定の保存**（`SettingsStore`）：オン／オフ・不透明度・スタイル・除外モニター・モニターごとの質感（JSON）を UserDefaults に保存。範囲外の値や未知のスタイルは既定値に戻す
 - **テスト**：Swift Testing で 17 件（テクスチャの決定性・色・明るさ・粒の細かさ、設定の保存と復元、強さの換算、モニターの除外）
 
@@ -103,7 +103,7 @@ reference/mvp-main.swift           最初の単一ファイル版（参照用。
   3. `~/agent-dev/homebrew-tap/Casks/paper-overlay.rb` の `version` と `sha256` を書き換えて push
   4. `brew update && brew fetch --cask aoki-dai/tap/paper-overlay` でダウンロードとハッシュを確認
 - cask の macOS 要件は `depends_on macos: :tahoe`（Homebrew 7 では `">= :tahoe"` の書き方は非推奨）
-- **`brew style` は実行しない**：開発用の gem を `/opt/homebrew/Library/Homebrew/vendor/bundle` に入れようとして途中で失敗し、`json-3.0.2` が Homebrew の Ruby と食い違って `brew tap` や `brew info` が動かなくなった（2026-10-10）。`json-3.0.2` を退避して直した
+- **`brew style` は実行しない**（入った開発用の部品は 2026-10-10 に `git clean -fdX Library/Homebrew/vendor/bundle` で片付け済み）：開発用の gem を `/opt/homebrew/Library/Homebrew/vendor/bundle` に入れようとして途中で失敗し、`json-3.0.2` が Homebrew の Ruby と食い違って `brew tap` や `brew info` が動かなくなった（2026-10-10）。`json-3.0.2` を退避して直した
 
 ## 計測（2026-10-10、Release ビルド、モニター 2 台）
 
