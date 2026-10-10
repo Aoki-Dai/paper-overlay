@@ -1,0 +1,10 @@
+# XcodeGen で生成するので管理しない（正本は project.yml）
+*.xcodeproj/
+
+# Build
+build/
+DerivedData/
+*.xcresult
+
+# macOS
+.DS_Store

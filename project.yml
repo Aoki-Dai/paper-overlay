@@ -1,0 +1,67 @@
+name: PaperOverlay
+
+options:
+  bundleIdPrefix: com.d4ok1
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: ja
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+
+targets:
+  PaperOverlay:
+    type: application
+    platform: macOS
+    sources:
+      - PaperOverlay
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.d4ok1.PaperOverlay
+        PRODUCT_NAME: PaperOverlay
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Paper Overlay
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # 直接配布（Developer ID + 公証）前提。サンドボックスは使わない
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+
+  PaperOverlayTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - PaperOverlayTests
+    dependencies:
+      - target: PaperOverlay
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.d4ok1.PaperOverlayTests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/PaperOverlay.app/Contents/MacOS/PaperOverlay"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  PaperOverlay:
+    build:
+      targets:
+        PaperOverlay: all
+        PaperOverlayTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - PaperOverlayTests
